@@ -60,12 +60,18 @@ jobs:
 
       - name: Create GHCR pull secret
         env:
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
         run: |
+          if [[ -z "${REGISTRY_USERNAME}" || -z "${REGISTRY_TOKEN}" ]]; then
+            echo "Configure GHCR_PULL_USERNAME and GHCR_PULL_TOKEN repository secrets." >&2
+            exit 1
+          fi
+
           kubectl apply -f k8s/namespace.yaml
           kubectl -n student-study-ai-agent-ocr create secret docker-registry ghcr-pull \
             --docker-server=ghcr.io \
-            --docker-username="${{ github.actor }}" \
+            --docker-username="${REGISTRY_USERNAME}" \
             --docker-password="${REGISTRY_TOKEN}" \
             --dry-run=client -o yaml |
             kubectl apply -f -

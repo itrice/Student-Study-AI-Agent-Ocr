@@ -20,7 +20,9 @@ Pushing to `main` builds and pushes an immutable
 `ghcr.io/itrice/student-study-ai-agent-ocr-service` image, then deploys it to
 the existing K3s cluster using the `ea-k3s` self-hosted runner. The workflow
 requires access to GHCR and a runner with `kubectl` configured for the cluster.
-The deployment uses a private image pull secret created from the workflow token.
+Add repository Actions secrets `GHCR_PULL_USERNAME` and `GHCR_PULL_TOKEN` with
+a GHCR identity that has read access to the private image package. The token is
+used to create or refresh the `ghcr-pull` Kubernetes Secret.
 
 The Kubernetes manifests are in `k8s/`. The internal service address is:
 
