@@ -20,6 +20,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: student-study-ai-agent
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tools
       ports:
         - protocol: TCP
           port: 8000
