@@ -34,7 +34,7 @@ spec:
             - name: OCR_BACKEND
               value: cpu
             - name: OCR_VERSION
-              value: PP-OCRv5
+              value: PP-OCRv6
             - name: OCR_CPU_THREADS
               value: "2"
             - name: MAX_IMAGE_BYTES

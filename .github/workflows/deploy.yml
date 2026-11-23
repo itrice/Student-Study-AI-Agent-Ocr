@@ -91,5 +91,37 @@ jobs:
           pod="$(kubectl -n student-study-ai-agent-ocr get pod \
             -l app.kubernetes.io/name=student-study-ai-agent-ocr \
             -o jsonpath='{.items[0].metadata.name}')"
-          kubectl -n student-study-ai-agent-ocr exec "${pod}" -- python -c \
-            "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5).read().decode())"
+          kubectl -n student-study-ai-agent-ocr exec -i "${pod}" -- python - <<'PY'
+          import json
+          import urllib.request
+          from io import BytesIO
+          from PIL import Image, ImageDraw, ImageFont
+
+          image = Image.new("RGB", (1000, 260), "white")
+          ImageDraw.Draw(image).text(
+              (40, 75), "Hello OCR 12345",
+              font=ImageFont.load_default(size=72),
+              fill="black",
+          )
+          image_data = BytesIO()
+          image.save(image_data, format="PNG")
+
+          boundary = "ocr-deployment-smoke-test"
+          body = (
+              f"--{boundary}\r\n"
+              'Content-Disposition: form-data; name="image"; filename="smoke.png"\r\n'
+              "Content-Type: image/png\r\n\r\n"
+          ).encode() + image_data.getvalue() + f"\r\n--{boundary}--\r\n".encode()
+          request = urllib.request.Request(
+              "http://127.0.0.1:8000/v1/ocr",
+              data=body,
+              headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              result = json.load(response)
+
+          text = " ".join(block["text"] for block in result["blocks"])
+          if not all(token in text for token in ("Hello", "OCR", "12345")):
+              raise SystemExit(f"OCR smoke test failed; recognized text: {text!r}")
+          print(f"OCR smoke test passed: {text}")
+          PY

@@ -3,3 +3,4 @@ uvicorn==0.34.2
 python-multipart==0.0.20
 Pillow==11.2.1
 rapidocr==3.10.0
+onnxruntime==1.28.0

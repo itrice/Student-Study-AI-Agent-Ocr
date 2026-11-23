@@ -1,7 +1,7 @@
 # Student Study AI Agent OCR
 
 Internal CPU-based OCR service for the Student Study AI Agent. It uses RapidOCR
-with PP-OCRv5 mobile models and runs as a single-replica ClusterIP service.
+with PP-OCRv6 small models and runs as a single-replica ClusterIP service.
 Images are built for `linux/amd64` and deployed by digest through GitHub Actions.
 
 ## API

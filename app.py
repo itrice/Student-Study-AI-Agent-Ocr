@@ -23,7 +23,7 @@ def health_live():
 def health_ready():
     return {
         "status": "ready",
-        "modelVersion": "PP-OCRv5-mobile",
+        "modelVersion": "PP-OCRv6-small",
     }
 
 
@@ -31,7 +31,7 @@ def health_ready():
 def version():
     return {
         "engine": "rapidocr",
-        "modelVersion": "PP-OCRv5-mobile",
+        "modelVersion": "PP-OCRv6-small",
         "ocrBackend": "cpu",
     }
 
@@ -70,9 +70,16 @@ async def ocr(image: UploadFile = File(...)):
         )
 
     blocks = []
-    boxes = getattr(result, "boxes", None) or []
-    texts = getattr(result, "txts", None) or []
-    scores = getattr(result, "scores", None) or []
+    boxes = getattr(result, "boxes", None)
+    texts = getattr(result, "txts", None)
+    scores = getattr(result, "scores", None)
+
+    if boxes is None:
+        boxes = []
+    if texts is None:
+        texts = []
+    if scores is None:
+        scores = []
 
     for index, (box, text, confidence) in enumerate(zip(boxes, texts, scores), start=1):
         if not text:
@@ -94,7 +101,7 @@ async def ocr(image: UploadFile = File(...)):
     elapsed_ms = round((time.monotonic() - started) * 1000, 2)
     return {
         "engine": "rapidocr",
-        "modelVersion": "PP-OCRv5-mobile",
+        "modelVersion": "PP-OCRv6-small",
         "width": width,
         "height": height,
         "processingTimeMs": elapsed_ms,
