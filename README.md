@@ -16,7 +16,8 @@ boxes and confidence scores. Image contents and OCR text are not logged.
 
 ## Deployment
 
-Pushing to `main` builds and pushes an immutable GHCR image, then deploys it to
+Pushing to `main` builds and pushes an immutable
+`ghcr.io/itrice/student-study-ai-agent-ocr-service` image, then deploys it to
 the existing K3s cluster using the `ea-k3s` self-hosted runner. The workflow
 requires access to GHCR and a runner with `kubectl` configured for the cluster.
 The deployment uses a private image pull secret created from the workflow token.

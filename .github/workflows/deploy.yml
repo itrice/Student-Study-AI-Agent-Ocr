@@ -43,7 +43,7 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/itrice/student-study-ai-agent-ocr:sha-${{ github.sha }}
+          tags: ghcr.io/itrice/student-study-ai-agent-ocr-service:sha-${{ github.sha }}
           outputs: type=image,push=true
           provenance: false
 
@@ -72,7 +72,7 @@ jobs:
 
       - name: Deploy immutable image
         env:
-          IMAGE_URI: ghcr.io/itrice/student-study-ai-agent-ocr:sha-${{ github.sha }}@${{ needs.build.outputs.digest }}
+          IMAGE_URI: ghcr.io/itrice/student-study-ai-agent-ocr-service:sha-${{ github.sha }}@${{ needs.build.outputs.digest }}
         run: |
           sed "s|__PLATFORM_IMAGE__|${IMAGE_URI}|g" k8s/*.yaml |
             kubectl apply -f -
