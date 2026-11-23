@@ -1,0 +1,89 @@
+name: Deploy internal OCR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**"
+  workflow_dispatch:
+
+concurrency:
+  group: internal-ocr-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+
+      - name: Login to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push immutable image
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/itrice/student-study-ai-agent-ocr:sha-${{ github.sha }}
+          outputs: type=image,push=true
+          provenance: false
+
+  deploy:
+    needs: build
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - ea-k3s
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Create GHCR pull secret
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl -n student-study-ai-agent-ocr create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${REGISTRY_TOKEN}" \
+            --dry-run=client -o yaml |
+            kubectl apply -f -
+
+      - name: Deploy immutable image
+        env:
+          IMAGE_URI: ghcr.io/itrice/student-study-ai-agent-ocr:sha-${{ github.sha }}@${{ needs.build.outputs.digest }}
+        run: |
+          sed "s|__PLATFORM_IMAGE__|${IMAGE_URI}|g" k8s/*.yaml |
+            kubectl apply -f -
+
+          kubectl -n student-study-ai-agent-ocr rollout status \
+            deployment/student-study-ai-agent-ocr --timeout=300s
+
+      - name: Smoke test
+        run: |
+          pod="$(kubectl -n student-study-ai-agent-ocr get pod \
+            -l app.kubernetes.io/name=student-study-ai-agent-ocr \
+            -o jsonpath='{.items[0].metadata.name}')"
+          kubectl -n student-study-ai-agent-ocr exec "${pod}" -- python -c \
+            "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5).read().decode())"

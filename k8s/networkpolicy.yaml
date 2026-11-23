@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: student-study-ai-agent-ocr
+  namespace: student-study-ai-agent-ocr
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: student-study-ai-agent-ocr
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: student-study-ai-agent-dev
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: student-study-ai-agent-qa
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: student-study-ai-agent
+      ports:
+        - protocol: TCP
+          port: 8000
