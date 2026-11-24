@@ -47,8 +47,87 @@ jobs:
           outputs: type=image,push=true
           provenance: false
 
-  deploy:
+  validate:
     needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      packages: read
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke test immutable image
+        env:
+          IMAGE_URI: ghcr.io/itrice/student-study-ai-agent-ocr-service:sha-${{ github.sha }}@${{ needs.build.outputs.digest }}
+        run: |
+          docker pull "${IMAGE_URI}"
+          docker run --detach --name ocr-candidate \
+            --read-only \
+            --tmpfs /tmp/ocr:rw,mode=1777,size=64m \
+            --publish 127.0.0.1:8000:8000 \
+            "${IMAGE_URI}"
+          cleanup() {
+            docker logs ocr-candidate || true
+            docker rm --force ocr-candidate >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          python3 - <<'PY'
+          import json
+          import time
+          import urllib.error
+          import urllib.request
+          from io import BytesIO
+          from PIL import Image, ImageDraw, ImageFont
+
+          base_url = "http://127.0.0.1:8000"
+          deadline = time.monotonic() + 120
+          while True:
+              try:
+                  with urllib.request.urlopen(f"{base_url}/health/ready", timeout=2) as response:
+                      if response.status == 200:
+                          break
+              except (OSError, urllib.error.URLError):
+                  if time.monotonic() >= deadline:
+                      raise TimeoutError("OCR candidate did not become ready")
+                  time.sleep(2)
+
+          image = Image.new("RGB", (1000, 260), "white")
+          ImageDraw.Draw(image).text(
+              (40, 75), "Hello OCR 12345",
+              font=ImageFont.load_default(size=72),
+              fill="black",
+          )
+          image_data = BytesIO()
+          image.save(image_data, format="PNG")
+
+          boundary = "ocr-candidate-smoke-test"
+          body = (
+              f"--{boundary}\r\n"
+              'Content-Disposition: form-data; name="image"; filename="smoke.png"\r\n'
+              "Content-Type: image/png\r\n\r\n"
+          ).encode() + image_data.getvalue() + f"\r\n--{boundary}--\r\n".encode()
+          request = urllib.request.Request(
+              f"{base_url}/v1/ocr",
+              data=body,
+              headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              result = json.load(response)
+
+          text = " ".join(block["text"] for block in result["blocks"])
+          if not all(token in text for token in ("Hello", "OCR", "12345")):
+              raise SystemExit(f"OCR smoke test failed; recognized text: {text!r}")
+          print(f"OCR image smoke test passed: {text}")
+          PY
+
+  deploy:
+    needs: [build, validate]
     runs-on:
       - self-hosted
       - linux
@@ -80,48 +159,10 @@ jobs:
         env:
           IMAGE_URI: ghcr.io/itrice/student-study-ai-agent-ocr-service:sha-${{ github.sha }}@${{ needs.build.outputs.digest }}
         run: |
-          sed "s|__PLATFORM_IMAGE__|${IMAGE_URI}|g" k8s/*.yaml |
-            kubectl apply -f -
+          for manifest in k8s/*.yaml; do
+            sed "s|__PLATFORM_IMAGE__|${IMAGE_URI}|g" "${manifest}" |
+              kubectl apply -f -
+          done
 
           kubectl -n student-study-ai-agent-ocr rollout status \
             deployment/student-study-ai-agent-ocr --timeout=300s
-
-      - name: Smoke test
-        run: |
-          pod="$(kubectl -n student-study-ai-agent-ocr get pod \
-            -l app.kubernetes.io/name=student-study-ai-agent-ocr \
-            -o jsonpath='{.items[0].metadata.name}')"
-          kubectl -n student-study-ai-agent-ocr exec -i "${pod}" -- python - <<'PY'
-          import json
-          import urllib.request
-          from io import BytesIO
-          from PIL import Image, ImageDraw, ImageFont
-
-          image = Image.new("RGB", (1000, 260), "white")
-          ImageDraw.Draw(image).text(
-              (40, 75), "Hello OCR 12345",
-              font=ImageFont.load_default(size=72),
-              fill="black",
-          )
-          image_data = BytesIO()
-          image.save(image_data, format="PNG")
-
-          boundary = "ocr-deployment-smoke-test"
-          body = (
-              f"--{boundary}\r\n"
-              'Content-Disposition: form-data; name="image"; filename="smoke.png"\r\n'
-              "Content-Type: image/png\r\n\r\n"
-          ).encode() + image_data.getvalue() + f"\r\n--{boundary}--\r\n".encode()
-          request = urllib.request.Request(
-              "http://127.0.0.1:8000/v1/ocr",
-              data=body,
-              headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
-          )
-          with urllib.request.urlopen(request, timeout=60) as response:
-              result = json.load(response)
-
-          text = " ".join(block["text"] for block in result["blocks"])
-          if not all(token in text for token in ("Hello", "OCR", "12345")):
-              raise SystemExit(f"OCR smoke test failed; recognized text: {text!r}")
-          print(f"OCR smoke test passed: {text}")
-          PY
