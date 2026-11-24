@@ -13,6 +13,13 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8000
+    - from:
+        - namespaceSelector:
+            matchLabels:
               kubernetes.io/metadata.name: student-study-ai-agent-dev
         - namespaceSelector:
             matchLabels:

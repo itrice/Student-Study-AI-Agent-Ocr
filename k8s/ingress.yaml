@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: student-study-ai-agent-ocr
+  namespace: student-study-ai-agent-ocr
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - student-study-ai-agent-orc.home.local
+      secretName: student-study-ai-agent-orc-tls
+  rules:
+    - host: student-study-ai-agent-orc.home.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: student-study-ai-agent-ocr
+                port:
+                  number: 8000

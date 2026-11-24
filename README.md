@@ -30,9 +30,15 @@ The Kubernetes manifests are in `k8s/`. The internal service address is:
 http://student-study-ai-agent-ocr.student-study-ai-agent-ocr.svc.cluster.local:8000
 ```
 
-Ingress, LoadBalancer, and NodePort are intentionally not configured. The
-NetworkPolicy permits ingress only from the dev, QA, and production application
-namespaces.
+The service is exposed to the local network through the K3s Traefik Ingress at:
+
+```text
+https://student-study-ai-agent-orc.home.local
+```
+
+The TLS certificate must exist in the `student-study-ai-agent-orc-tls` Secret
+in the `student-study-ai-agent-ocr` namespace. The NetworkPolicy permits ingress
+from the Traefik controller, the dev, QA, and production application namespaces.
 
 To check a deployment:
 
