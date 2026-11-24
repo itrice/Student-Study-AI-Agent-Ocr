@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from PIL import Image
 from starlette.datastructures import Headers, UploadFile
 
-from app import ocr
+from app import index_page, ocr
 
 
 def make_upload(data, content_type="image/png"):
@@ -28,6 +28,12 @@ def make_png():
 
 
 class OCRResponseTests(unittest.TestCase):
+    def test_serves_ocr_upload_page(self):
+        response = index_page()
+
+        self.assertIn("题目 OCR 识别工作台", response.body.decode("utf-8"))
+        self.assertIn("字符匹配率", response.body.decode("utf-8"))
+
     def test_formats_numpy_detections_into_response_blocks(self):
         result = SimpleNamespace(
             boxes=np.array([[[1, 2], [9, 2], [9, 8], [1, 8]]]),

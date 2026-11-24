@@ -6,6 +6,7 @@ Images are built for `linux/amd64` and deployed by digest through GitHub Actions
 
 ## API
 
+- `GET /` serves the image upload and OCR evaluation page
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /version`
@@ -13,6 +14,12 @@ Images are built for `linux/amd64` and deployed by digest through GitHub Actions
 
 The OCR response includes image dimensions and ordered text blocks with bounding
 boxes and confidence scores. Image contents and OCR text are not logged.
+The upload page can compare recognized text against a manually entered reference
+using character-level accuracy (ignoring whitespace). This is a sample-level
+measurement, not a semantic correctness score. The current general OCR model
+does not interpret handwritten math or the meaning of Chinese proofreading,
+circle, check, and cross marks; those should be reviewed against the original
+image.
 
 ## Deployment
 

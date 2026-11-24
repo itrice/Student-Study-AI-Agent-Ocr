@@ -1,17 +1,25 @@
 import io
 import os
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import HTMLResponse
 from PIL import Image, UnidentifiedImageError
 from rapidocr import RapidOCR
 
 
 MAX_IMAGE_BYTES = int(os.getenv("MAX_IMAGE_BYTES", "10485760"))
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+PAGE_PATH = Path(__file__).parent / "web" / "index.html"
 
 app = FastAPI(title="Internal OCR Service", docs_url=None, redoc_url=None)
 engine = RapidOCR()
+
+
+@app.get("/", response_class=HTMLResponse)
+def index_page():
+    return HTMLResponse(PAGE_PATH.read_text(encoding="utf-8"))
 
 
 @app.get("/health/live")

@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && useradd --uid 10001 --create-home --shell /usr/sbin/nologin ocr
 
 COPY app.py .
+COPY web/ ./web/
 
 RUN chown -R 10001:10001 /app /models /tmp/ocr \
     && chmod -R 0755 /models
