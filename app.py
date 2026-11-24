@@ -3,7 +3,7 @@ import os
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from PIL import Image, UnidentifiedImageError
 from rapidocr import RapidOCR
@@ -59,6 +59,31 @@ async def ocr(image: UploadFile = File(...)):
             detail={"code": "IMAGE_TOO_LARGE", "message": "Image exceeds size limit"},
         )
 
+    return recognize_image(data)
+
+
+@app.post("/v1/ocr/raw")
+async def ocr_raw(request: Request):
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail={"code": "UNSUPPORTED_IMAGE_TYPE", "message": "Unsupported image type"},
+        )
+
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > MAX_IMAGE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail={"code": "IMAGE_TOO_LARGE", "message": "Image exceeds size limit"},
+            )
+
+    return recognize_image(bytes(data))
+
+
+def recognize_image(data: bytes):
     started = time.monotonic()
     try:
         pil_image = Image.open(io.BytesIO(data))

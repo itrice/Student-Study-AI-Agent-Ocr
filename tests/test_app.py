@@ -8,8 +8,9 @@ import numpy as np
 from fastapi import HTTPException
 from PIL import Image
 from starlette.datastructures import Headers, UploadFile
+from starlette.requests import Request
 
-from app import index_page, ocr
+from app import index_page, ocr, ocr_raw
 
 
 def make_upload(data, content_type="image/png"):
@@ -25,6 +26,23 @@ def make_png():
     output = BytesIO()
     image.save(output, format="PNG")
     return output.getvalue()
+
+
+def make_raw_request(data, content_type="image/png"):
+    messages = iter(
+        [{"type": "http.request", "body": data, "more_body": False}]
+    )
+
+    async def receive():
+        return next(messages)
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/v1/ocr/raw",
+        "headers": [(b"content-type", content_type.encode())],
+    }
+    return Request(scope, receive)
 
 
 class OCRResponseTests(unittest.TestCase):
@@ -81,6 +99,31 @@ class OCRResponseTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 400)
         engine.assert_not_called()
+
+    def test_accepts_raw_image_bytes(self):
+        result = SimpleNamespace(boxes=[], txts=[], scores=[])
+
+        with patch("app.engine", return_value=result):
+            response = asyncio.run(ocr_raw(make_raw_request(make_png())))
+
+        self.assertEqual(response["blocks"], [])
+        self.assertEqual(response["width"], 20)
+        self.assertEqual(response["height"], 10)
+
+    def test_rejects_oversized_raw_image(self):
+        with patch("app.MAX_IMAGE_BYTES", 3):
+            with self.assertRaises(HTTPException) as raised:
+                asyncio.run(ocr_raw(make_raw_request(make_png())))
+
+        self.assertEqual(raised.exception.status_code, 413)
+
+    def test_rejects_unsupported_raw_media_type(self):
+        with self.assertRaises(HTTPException) as raised:
+            asyncio.run(
+                ocr_raw(make_raw_request(b"data", "application/octet-stream"))
+            )
+
+        self.assertEqual(raised.exception.status_code, 415)
 
 
 if __name__ == "__main__":

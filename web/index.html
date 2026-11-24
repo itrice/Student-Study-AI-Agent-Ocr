@@ -359,11 +359,13 @@
       clearResults();
       document.getElementById("result-state").textContent = "识别中…";
       setStatus("正在上传并识别图片…");
-      const formData = new FormData();
-      formData.append("image", selectedFile);
 
       try {
-        const response = await fetch("/v1/ocr", { method: "POST", body: formData });
+        const response = await fetch("/v1/ocr/raw", {
+          method: "POST",
+          headers: { "Content-Type": selectedFile.type },
+          body: selectedFile,
+        });
         const result = await response.json();
         if (!response.ok) {
           const detail = result.detail;

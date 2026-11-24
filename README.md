@@ -11,6 +11,8 @@ Images are built for `linux/amd64` and deployed by digest through GitHub Actions
 - `GET /health/ready`
 - `GET /version`
 - `POST /v1/ocr` with multipart field `image` (JPEG, PNG, or WebP; up to 10 MiB)
+- `POST /v1/ocr/raw` with the image bytes as the request body and the image MIME type
+  as `Content-Type` (JPEG, PNG, or WebP; up to 10 MiB)
 
 The OCR response includes image dimensions and ordered text blocks with bounding
 boxes and confidence scores. Image contents and OCR text are not logged.
