@@ -86,7 +86,7 @@ jobs:
           }
           trap cleanup EXIT
 
-          python3 - <<'PY'
+          docker exec -i ocr-candidate python - <<'PY'
           import json
           import time
           import urllib.error
