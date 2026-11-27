@@ -88,8 +88,12 @@
     .block-item { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 12px; padding: 9px 10px; border: 1px solid #edf0f5; border-radius: 9px; color: #26324a; background: white; text-align: left; }
     .block-item:hover, .block-item.selected { border-color: #9eb0f4; background: #f4f6ff; }
     .block-text { overflow-wrap: anywhere; line-height: 1.45; }
+    .block-meta { display: grid; justify-items: end; gap: 5px; }
     .confidence { white-space: nowrap; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
     .confidence.low { color: #bd5b12; font-weight: 700; }
+    .writing-type { white-space: nowrap; padding: 3px 7px; border-radius: 999px; color: #3156bb; background: #edf2ff; font-size: 11px; }
+    .writing-type.handwritten { color: #8a4b11; background: #fff3df; }
+    .writing-type.unknown { color: #687386; background: #eef0f4; }
     .no-blocks { padding: 11px; border-radius: 9px; color: var(--muted); background: #f7f8fb; font-size: 13px; line-height: 1.5; }
     .hint { margin-top: 10px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 
@@ -141,7 +145,10 @@
 
     <aside class="notice">
       <strong>关于手写与批改符号：</strong>
-      当前引擎是通用文字 OCR，并非手写数学公式识别或语文批改符号理解模型。
+      OCR 文字识别与书写类型分类由不同模型完成。手写/印刷分类器是实验性候选模型，
+      训练域为乌克兰文，中文作业的分类准确率尚未验证；类型置信度不是准确率保证。
+      合成印刷数字测试曾被高置信度误判为手写（99.96%）。
+      当前引擎也不是手写数学公式识别或语文批改符号理解模型。
       手写运算符、圈改/删除/插入符号及圈、勾、叉可能识别不全或无法还原其含义。
       请结合左侧原图和文字框核对；低置信度提示仅供参考，不代表全部错误都能被标出。
     </aside>
@@ -347,7 +354,18 @@
         const score = document.createElement("span");
         score.className = `confidence${block.confidence < 0.6 ? " low" : ""}`;
         score.textContent = `${(block.confidence * 100).toFixed(1)}%`;
-        item.append(text, score);
+        const meta = document.createElement("span");
+        meta.className = "block-meta";
+        const type = document.createElement("span");
+        type.className = `writing-type${block.writingType === "handwritten" ? " handwritten" : block.writingType === "unknown" ? " unknown" : ""}`;
+        type.textContent = {
+          handwritten: "手写",
+          printed: "印刷",
+          unknown: "未确定",
+        }[block.writingType] || "未确定";
+        type.title = `书写类型置信度 ${(block.writingTypeConfidence * 100).toFixed(1)}%`;
+        meta.append(type, score);
+        item.append(text, meta);
         list.appendChild(item);
       });
     }

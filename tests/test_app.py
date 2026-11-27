@@ -58,8 +58,15 @@ class OCRResponseTests(unittest.TestCase):
             txts=["recognized"],
             scores=[0.98765],
         )
+        writing_prediction = SimpleNamespace(label="printed", confidence=0.93)
 
-        with patch("app.engine", return_value=result):
+        with (
+            patch("app.engine", return_value=result),
+            patch(
+                "app.writing_classifier.predict",
+                return_value=writing_prediction,
+            ) as classify,
+        ):
             response = asyncio.run(ocr(make_upload(make_png())))
 
         self.assertEqual(
@@ -70,9 +77,36 @@ class OCRResponseTests(unittest.TestCase):
                     "text": "recognized",
                     "bbox": [1, 2, 9, 8],
                     "confidence": 0.9877,
+                    "writingType": "printed",
+                    "writingTypeConfidence": 0.93,
                 }
             ],
         )
+        self.assertEqual(classify.call_args.args[0].size, (11, 10))
+        self.assertEqual(
+            classify.call_args.kwargs,
+            {"return_details": True},
+        )
+
+    def test_marks_low_confidence_writing_type_unknown(self):
+        result = SimpleNamespace(
+            boxes=np.array([[[1, 2], [9, 2], [9, 8], [1, 8]]]),
+            txts=["recognized"],
+            scores=[0.9],
+        )
+        writing_prediction = SimpleNamespace(label="handwritten", confidence=0.55)
+
+        with (
+            patch("app.engine", return_value=result),
+            patch(
+                "app.writing_classifier.predict",
+                return_value=writing_prediction,
+            ),
+        ):
+            response = asyncio.run(ocr(make_upload(make_png())))
+
+        self.assertEqual(response["blocks"][0]["writingType"], "unknown")
+        self.assertEqual(response["blocks"][0]["writingTypeConfidence"], 0.55)
 
     def test_returns_empty_blocks_for_empty_numpy_results(self):
         result = SimpleNamespace(

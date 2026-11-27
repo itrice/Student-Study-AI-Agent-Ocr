@@ -7,14 +7,18 @@ from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from PIL import Image, UnidentifiedImageError
 from rapidocr import RapidOCR
+from handwriting_classifier import HandwritingClassifier
 
 
 MAX_IMAGE_BYTES = int(os.getenv("MAX_IMAGE_BYTES", "10485760"))
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 PAGE_PATH = Path(__file__).parent / "web" / "index.html"
+WRITING_TYPE_MIN_CONFIDENCE = 0.6
+WRITING_TYPE_MODEL = "Ankygtm/Handwriting-Classifier@accd063e"
 
 app = FastAPI(title="Internal OCR Service", docs_url=None, redoc_url=None)
 engine = RapidOCR()
+writing_classifier = HandwritingClassifier(device="cpu")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -41,6 +45,7 @@ def version():
         "engine": "rapidocr",
         "modelVersion": "PP-OCRv6-small",
         "ocrBackend": "cpu",
+        "writingTypeModel": WRITING_TYPE_MODEL,
     }
 
 
@@ -90,51 +95,75 @@ def recognize_image(data: bytes):
         pil_image.load()
         pil_image = pil_image.convert("RGB")
         width, height = pil_image.size
-        result = engine(pil_image)
     except (UnidentifiedImageError, OSError, ValueError):
         raise HTTPException(
             status_code=400,
             detail={"code": "INVALID_IMAGE", "message": "Unable to decode image"},
         )
+
+    try:
+        result = engine(pil_image)
+        blocks = []
+        boxes = getattr(result, "boxes", None)
+        texts = getattr(result, "txts", None)
+        scores = getattr(result, "scores", None)
+        if boxes is None:
+            boxes = []
+        if texts is None:
+            texts = []
+        if scores is None:
+            scores = []
+
+        for index, (box, text, confidence) in enumerate(
+            zip(boxes, texts, scores), start=1
+        ):
+            if not text:
+                continue
+            points = [int(value) for point in box for value in point]
+            left = min(points[0::2])
+            top = min(points[1::2])
+            right = max(points[0::2])
+            bottom = max(points[1::2])
+
+            margin_x = max(2, round((right - left) * 0.05))
+            margin_y = max(2, round((bottom - top) * 0.1))
+            crop = pil_image.crop(
+                (
+                    max(0, left - margin_x),
+                    max(0, top - margin_y),
+                    min(width, right + margin_x),
+                    min(height, bottom + margin_y),
+                )
+            )
+            writing_prediction = writing_classifier.predict(
+                crop, return_details=True
+            )
+            writing_confidence = float(writing_prediction.confidence)
+            predicted_type = writing_prediction.label
+            if writing_confidence < WRITING_TYPE_MIN_CONFIDENCE:
+                predicted_type = "unknown"
+
+            blocks.append(
+                {
+                    "order": index,
+                    "text": text,
+                    "bbox": [left, top, right, bottom],
+                    "confidence": round(float(confidence), 4),
+                    "writingType": predicted_type,
+                    "writingTypeConfidence": round(writing_confidence, 4),
+                }
+            )
     except Exception:
         raise HTTPException(
             status_code=500,
             detail={"code": "OCR_PROCESSING_FAILED", "message": "OCR processing failed"},
         )
 
-    blocks = []
-    boxes = getattr(result, "boxes", None)
-    texts = getattr(result, "txts", None)
-    scores = getattr(result, "scores", None)
-
-    if boxes is None:
-        boxes = []
-    if texts is None:
-        texts = []
-    if scores is None:
-        scores = []
-
-    for index, (box, text, confidence) in enumerate(zip(boxes, texts, scores), start=1):
-        if not text:
-            continue
-        points = [int(value) for point in box for value in point]
-        left = min(points[0::2])
-        top = min(points[1::2])
-        right = max(points[0::2])
-        bottom = max(points[1::2])
-        blocks.append(
-            {
-                "order": index,
-                "text": text,
-                "bbox": [left, top, right, bottom],
-                "confidence": round(float(confidence), 4),
-            }
-        )
-
     elapsed_ms = round((time.monotonic() - started) * 1000, 2)
     return {
         "engine": "rapidocr",
         "modelVersion": "PP-OCRv6-small",
+        "writingTypeModel": WRITING_TYPE_MODEL,
         "width": width,
         "height": height,
         "processingTimeMs": elapsed_ms,

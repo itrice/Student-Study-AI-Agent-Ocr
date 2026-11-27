@@ -15,7 +15,17 @@ Images are built for `linux/amd64` and deployed by digest through GitHub Actions
   as `Content-Type` (JPEG, PNG, or WebP; up to 10 MiB)
 
 The OCR response includes image dimensions and ordered text blocks with bounding
-boxes and confidence scores. Image contents and OCR text are not logged.
+boxes, OCR confidence scores, and `writingType` (`printed`, `handwritten`, or
+`unknown`) with a separate `writingTypeConfidence`. The latter is a classifier
+score, not an accuracy guarantee. Image contents and OCR text are not logged.
+The experimental handwriting classifier is the MIT-licensed
+[Ankygtm/Handwriting-Classifier](https://github.com/Ankygtm/Handwriting-Classifier),
+pinned to a specific commit and running locally on CPU. Its training domain is
+Ukrainian text; accuracy on Chinese homework images has not been validated, so
+verify classifications against representative local samples before relying on
+them. A synthetic printed-number smoke test was misclassified as handwritten
+with 99.96% confidence, so even high scores can be wrong. Low-confidence
+classifications are returned as `unknown`.
 The upload page can compare recognized text against a manually entered reference
 using character-level accuracy (ignoring whitespace). This is a sample-level
 measurement, not a semantic correctness score. The current general OCR model
